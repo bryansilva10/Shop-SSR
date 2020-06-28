@@ -1,5 +1,7 @@
 const path = require('path');
 const fs = require('fs');
+const https = require('https');
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
@@ -13,6 +15,8 @@ const compression = require('compression');
 const morgan = require('morgan');
 
 const errorController = require('./controllers/error');
+const shopController = require('./controllers/shop');
+const isAuth = require('./middleware/is-auth');
 const User = require('./models/user');
 
 const MONGODB_URI =
@@ -25,12 +29,15 @@ const store = new MongoDBStore({
 });
 const csrfProtection = csrf();
 
+// const privateKey = fs.readFileSync('server.key');
+// const certificate = fs.readFileSync('server.cert');
+
 const fileStorage = multer.diskStorage({
 	destination: (req, file, cb) => {
 		cb(null, 'images');
 	},
 	filename: (req, file, cb) => {
-		cb(null, new Date().getTime() + '-' + file.originalname);
+		cb(null, new Date().toISOString() + '-' + file.originalname);
 	}
 });
 
@@ -53,12 +60,15 @@ const adminRoutes = require('./routes/admin');
 const shopRoutes = require('./routes/shop');
 const authRoutes = require('./routes/auth');
 
-//to store log files from application
-const accessLogStream = fs.createWriteStream(path.join(__dirname, 'access.log'), { flags: 'a' });
+const accessLogStream = fs.createWriteStream(
+	path.join(__dirname, 'access.log'),
+	{ flags: 'a' }
+);
 
 app.use(helmet());
 app.use(compression());
 app.use(morgan('combined', { stream: accessLogStream }));
+
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(
 	multer({ storage: fileStorage, fileFilter: fileFilter }).single('image')
@@ -73,12 +83,11 @@ app.use(
 		store: store
 	})
 );
-app.use(csrfProtection);
+
 app.use(flash());
 
 app.use((req, res, next) => {
 	res.locals.isAuthenticated = req.session.isLoggedIn;
-	res.locals.csrfToken = req.csrfToken();
 	next();
 });
 
@@ -98,6 +107,14 @@ app.use((req, res, next) => {
 		.catch(err => {
 			next(new Error(err));
 		});
+});
+
+app.post('/create-order', isAuth, shopController.postOrder);
+
+app.use(csrfProtection);
+app.use((req, res, next) => {
+	res.locals.csrfToken = req.csrfToken();
+	next();
 });
 
 app.use('/admin', adminRoutes);
@@ -121,6 +138,9 @@ app.use((error, req, res, next) => {
 mongoose
 	.connect(MONGODB_URI)
 	.then(result => {
+		// https
+		//   .createServer({ key: privateKey, cert: certificate }, app)
+		//   .listen(process.env.PORT || 3000);
 		app.listen(process.env.PORT || 3000);
 	})
 	.catch(err => {
