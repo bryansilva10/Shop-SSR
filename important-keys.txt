@@ -1,0 +1,3 @@
+SENDGRID API KEY: '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'
+
+MONGODB URI: 'mongodb+srv://admin-bryan:bryanpass@cluster0-mnqtb.mongodb.net/shop'
